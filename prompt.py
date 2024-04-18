@@ -4,7 +4,8 @@ import json
 import time
 import os
 
-class Client():
+
+class Client:
     def __init__(self, api_key) -> None:
         self.api_key = api_key
         self.client = OpenAI(api_key=api_key)
@@ -28,17 +29,30 @@ class Client():
         os.makedirs("cache", exist_ok=True)
         with open(f"cache/response_{timeStamp}.json", "w") as f:
             json.dump(parsed_data, f, indent=4)
-        
+
         return parsed_data
+
 
 def direct_prompt(input, output):
     DIRECT_TEMPLATE = (
         f"Given the input text:\n```\n"
         f"{input}\n```\nand the following output text:\n```\n{output}\n```\n"
         "Give importance scores (from 0 to 10) for each word in the input with respect to how much they contribute the output. You should format your answer using JSON syntax."
-        "You need to keep the newline symbol by using <br>."
+        "You need to indicate every newline symbol by using <br>."
+        "An example of your response is:\n```\n"
+        """{
+    "Explain": 0,
+    "the": 5,
+    "concept": 6,
+    "of": 5,
+    "a": 10,
+    "group": 10,
+    "in": 7,
+    "abstract": 10,
+    "algebra": 10}\n```\n"""
     )
     return DIRECT_TEMPLATE
+
 
 if __name__ == "__main__":
     example_input = """
