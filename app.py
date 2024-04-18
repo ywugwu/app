@@ -46,6 +46,10 @@ def generate_html(responses, importance_scores):
 # Title of the app
 st.title('A Demo for GPT\'s Introspection')
 
+# Initialize session state
+if 'show_prompt' not in st.session_state:
+    st.session_state['show_prompt'] = False
+
 # Creating two text input fields
 api_key = st.text_input("OpenAI API key", placeholder="You API key from https://platform.openai.com/api-keys")
 
@@ -70,3 +74,12 @@ if st.button('Get Response'):
     # Display the response
     status_message.empty()
     st.markdown(response_html, unsafe_allow_html=True)
+    
+
+# Button to toggle prompt visibility
+if st.button('View/Hide The Introspection Prompt'):
+    st.session_state['show_prompt'] = not st.session_state['show_prompt']
+
+# Display the prompt conditionally
+if st.session_state['show_prompt']:
+    st.write(direct_prompt("INPUT","OUTPUT"))

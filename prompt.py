@@ -37,19 +37,11 @@ def direct_prompt(input, output):
     DIRECT_TEMPLATE = (
         f"Given the input text:\n```\n"
         f"{input}\n```\nand the following output text:\n```\n{output}\n```\n"
-        "Give importance scores (from 0 to 10) for each word in the input text (you don't need to include the words in the output text) with respect to how much they contribute the output. You should format your answer using JSON syntax."
-        "You need to indicate every newline symbol by using <br>."
+        "Give importance scores (from 0 to 10) for each word in the input text (you don't need to include the words in the output text) with respect to how much they contribute the output. You should format your answer using JSON syntax. "
+        "You need to indicate every newline symbol by using <br>. "
         "An example format of your response is:\n```\n"
-        """{
-    "Explain": 0,
-    "the": 5,
-    "concept": 6,
-    "of": 5,
-    "a": 10,
-    "group": 10,
-    "in": 7,
-    "abstract": 10,
-    "algebra": 10}\n```\n"""
+        """
+{"Explain": 0,"the": 5,"concept": 6,"of": 5,"a": 10,"group": 10,"in": 7,"abstract": 10,"algebra": 10}\n```\n"""
     )
     return DIRECT_TEMPLATE
 
