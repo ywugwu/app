@@ -47,7 +47,7 @@ def generate_html(responses, importance_scores):
 st.title('A Demo for GPT\'s Introspection')
 
 # Creating two text input fields
-api_key = st.text_input("OpenAI API key", placeholder="Your API key from https://platform.openai.com/api-keys")
+api_key = st.text_input("OpenAI API key", placeholder="You API key from https://platform.openai.com/api-keys")
 
 if st.button('Confirm API key'):
     st.write("Confirmed API key")
