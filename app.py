@@ -77,7 +77,7 @@ if st.button('Get Response'):
     
 
 # Button to toggle prompt visibility
-if st.button('View/Hide The Introspection Prompt'):
+if st.button('View/Hide The Introspection Prompt Format'):
     st.session_state['show_prompt'] = not st.session_state['show_prompt']
 
 # Display the prompt conditionally
