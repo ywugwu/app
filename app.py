@@ -128,10 +128,6 @@ if st.button('Confirm API key'):
 input1 = st.text_area("Input", placeholder="Example: I want you to help me review an interaction I had with a patient .......")
 input2 = st.text_area("Output", placeholder="Example: The diagnosis is not stated, but the differential diagnoses of acute pain and essential hypertension are consistent with the elevated blood pressure and the patient's complaint of pain.")
 
-# input1 = "Explain the concept of a group in abstract algebra."
-# input2 = """In abstract algebra, a group is a set equipped with a binary operation that satisfies four fundamental properties: \n
-#             closure, associativity, the existence of an identity element, and the existence of inverse elements for every element in the set. \n
-#             This structure allows abstract groups to model the symmetrical aspects of mathematical systems.\n"""
 
 if st.button('Get Response') or st.session_state.get('response_fetched', False):
     if not st.session_state.get('response_fetched', False):
@@ -164,14 +160,11 @@ if st.button('Get Response') or st.session_state.get('response_fetched', False):
             _, html_content = htmls[selected_output]
             st.write(f"**Word-Level Importance for: {htmls[selected_output][0]}**")
             st.markdown(html_content, unsafe_allow_html=True)
-        else:
-            default_input_information = {word: 0 for word in input1.split()}
-            default_html = generate_html_for_wordlevel_importance(default_input_information)
-            st.write(f"**Word-Level Importance for: {introspect_results[0][0]}**")
-            st.markdown(default_html, unsafe_allow_html=True)
-
-
-    
+        
+    # # Display raw response in JSON format
+    # if st.button('Show Raw Response'):
+    #     st.write(responses)
+        
 # Button to toggle prompt visibility
 if st.button('View/Hide The Introspection Prompt Format'):
     st.session_state['show_prompt'] = not st.session_state['show_prompt']
@@ -179,3 +172,4 @@ if st.button('View/Hide The Introspection Prompt Format'):
 # Display the prompt conditionally
 if st.session_state['show_prompt']:
     st.write(direct_prompt(input1,input2))
+
