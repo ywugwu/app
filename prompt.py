@@ -37,11 +37,36 @@ def direct_prompt(input, output):
     DIRECT_TEMPLATE = (
         f"Given the input text:\n```\n"
         f"{input}\n```\nand the following output text:\n```\n{output}\n```\n"
-        "Give importance scores (from 0 to 10) for each word in the input text (you don't need to include the words in the output text) with respect to how much they contribute the output. You should format your answer using JSON syntax. "
-        "You need to indicate every newline symbol by using <br>. "
-        "An example format of your response is:\n```\n"
-        """
-{"Explain": 0,"the": 5,"concept": 6,"of": 5,"a": 10,"group": 10,"in": 7,"abstract": 10,"algebra": 10}\n```\n"""
+        """I want you to show the important words and their importance score (from 0 to 10) for every word in the output text with respect to how much they influenced the outputted word in a word level. Namely, I want you to show, for every word in the output text, what words in the input text contribute to their presence the most and what is their importance score. You don't need to present the words with a 0 importance score. You can concatenate continuous words into a phrase if their important words and importance scores are the same.
+
+You should format your answer using JSON syntax. You should make sure concatenating all keys in the JSON file can form the original output text.
+
+An example is shown below:
+Input text: 
+```
+    Explain the concept of a group in abstract algebra.
+```
+Output text:
+```
+In abstract algebra, a group is a set equipped with a binary operation that satisfies four fundamental properties: closure, associativity, the existence of an identity element, and the existence of inverse elements for every element in the set. This structure allows abstract groups to model the symmetrical aspects of mathematical systems.
+```
+Answer:
+```
+{
+  "In abstract algebra,": {"Explain": 3, "abstract algebra": 10},
+  "a group is": {"group": 10},
+  "a set equipped with a binary operation": {"concept": 8},
+  "that satisfies four fundamental properties:": {"concept": 7},
+  "closure,": {"group": 5},
+  "associativity,": {"group": 5},
+  "the existence of an identity element,": {"group": 5},
+  "and the existence of inverse elements": {"group": 5},
+  "for every element in the set.": {"group": 5},
+  "This structure allows abstract groups": {"abstract algebra": 10},
+  "to model the symmetrical aspects": {"concept": 6},
+  "of mathematical systems.": {"abstract algebra": 9}
+}
+```"""
     )
     return DIRECT_TEMPLATE
 
