@@ -80,6 +80,7 @@ def parse_json(response, input_text, output_text):
 
 def chatbot_response(input1, input2, client):
     if CACHE:
+        os.mkdir("cache") if not os.path.exists("cache") else None
         files = os.listdir("cache")
         response = json.loads(open(f"cache/{files[-1]}").read())
     else:
