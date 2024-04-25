@@ -3,7 +3,7 @@ import json
 import os
 from prompt import *
 st.set_page_config(layout="wide")
-CACHE = True
+CACHE = False
 
 
 from collections import defaultdict
