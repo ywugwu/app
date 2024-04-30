@@ -6,80 +6,17 @@ from text_highlighter import text_highlighter
 
 st.set_page_config(layout="wide")
 CACHE = False
-PREDEFINED_EXAMPLE = True
 
 from collections import defaultdict
 
 
-def approximate_button_width(word, avg_char_width=9, padding=0):
-    """
-    Estimates the pixel width of a button based on its label length.
-    avg_char_width: Average pixel width of one character of text.
-    padding: Total horizontal padding in pixels.
-    """
-    return len(word) * avg_char_width + padding
-
-
-def approximate_button_width(text, char_width, pad):
-    # This is a simplified function to approximate button width.
-    return len(text) * char_width + 2 * pad
-
-
-def layout_buttons_dynamic(htmls, max_row_width=800, avg_char_width=15, padding=12):
-    """
-    Dynamically layout buttons based on their estimated width.
-    max_row_width: Maximum width in pixels available for one row.
-    """
-    outputs = list(htmls.items())
-    row_buffers = []
-    current_row = []
-    current_width = 0
-
-    # Iterate through each item and allocate to rows based on estimated widths
-    for idx, (output_word, _) in outputs:
-        button_width = approximate_button_width(output_word, avg_char_width, padding)
-        if current_width + button_width > max_row_width:
-            if current_row:
-                row_buffers.append(current_row)
-            current_row = [(idx, output_word, button_width)]
-            current_width = button_width
-        else:
-            current_row.append((idx, output_word, button_width))
-            current_width += button_width
-
-    if current_row:  # Append the last row if any
-        row_buffers.append(current_row)
-
-    # Render each row with appropriate columns
-    for row in row_buffers:
-        widths = [button_width for _, _, button_width in row]
-        cols = st.columns(widths)  # Create columns with proportional widths
-        for col, (idx, output_word, _) in zip(cols, row):
-            col.button(
-                label=str(output_word).replace(".", "\."),
-                use_container_width=True,
-                key=f"btn_{idx}",
-                on_click=lambda idx=idx: st.session_state.update(
-                    {"selected_output": idx}
-                ),
-            )
-        # use st.write to check the column width information
-        # st.write(f'{widths}')
-        # st.write(f'{[output_word for _, output_word, _ in row]}')
-
-
 def parse_json(response, input_text, output_text):
-    # response format: {"phrase": {"phrase": score}}
-    # Split the output text into words
     input_words = input_text.split()
-    # Initialize the main tuple container
     introspect_results = []
-
     # Process each output word
     for output_phrase, input_info in response.items():
         input_words_scores = []
         tmp_dict = defaultdict(int)
-        # Search through the JSON for matches and their scores
         for phrase, score in input_info.items():
             for word in phrase.split():
                 tmp_dict[word] = score
@@ -87,9 +24,40 @@ def parse_json(response, input_text, output_text):
             input_words_scores.append((word, tmp_dict[word]))
         for output_word in output_phrase.split():
             introspect_results.append((output_word, input_words_scores))
-
     return introspect_results
 
+def parse_json_two_stage(response, input_text, output_text):
+    pseudo_response = {}
+    i = 0
+    for output_phrase, input_info in response.items():
+        start = output_text.find(output_phrase)
+        end = start + len(output_phrase)
+        # map output_text[i:start] to {}
+        pseudo_response[output_text[i:start]] = {}
+        # map output_text[start:end] to input_info
+        pseudo_response[output_phrase] = input_info
+        i = end
+    introspect_results = parse_json(pseudo_response, input_text, output_text)
+    return introspect_results
+
+def position_to_word_score_cache(introspect_results):
+    ans = {}
+    start = 0
+    for output_word, input_information in introspect_results:
+        n = len(output_word)
+        for i in range(start, start + n):
+            ans[i] = {
+                'word': output_word,
+                'input_information': input_information,
+                'start': i == start,
+            }
+        ans[start + n] = {
+            'word': ' ',
+            'input_information': [],
+            'start': False,
+        }
+        start += n + 1
+    return ans
 
 def chatbot_response(input1, input2, client):
     if CACHE:
@@ -101,6 +69,25 @@ def chatbot_response(input1, input2, client):
         response = client.get_response(direct_prompt(input1, input2))
     return response
 
+def chatty_response(input1, input2, client):
+    if CACHE:
+        if not os.path.exists("cache/chatty"):
+            os.mkdir("cache/chatty")
+        files = os.listdir("cache/chatty")
+        response = json.loads(open(f"cache/chatty/{files[-1]}").read())
+    else:
+        response = client.get_response(chatty_prompt(input1, input2), cache_dir="cache/chatty")
+    return response
+
+def two_stage_response(input1, input2, client):
+    if CACHE:
+        if not os.path.exists("cache/two_stage"):
+            os.mkdir("cache/two_stage")
+        files = os.listdir("cache/two_stage")
+        response = json.loads(open(f"cache/two_stage/{files[-1]}").read())
+    else:
+        response = client.get_response(two_stage_prompt(input1, input2), cache_dir="cache/two_stage")
+    return response
 
 def number_to_color(n):
     white = (255, 255, 255)
@@ -126,6 +113,16 @@ def generate_html_for_wordlevel_importance(input_information):
 
     return response_html
 
+def generate_html_for_multiple_wordlevel_importance(input_informations):
+    merged_input_informations = defaultdict(int)
+    for input_information in input_informations:
+        for input_word, importance_score in input_information:
+            merged_input_informations[input_word] = max(merged_input_informations[input_word], importance_score)
+    response_html = ""
+    for input_word, importance_score in merged_input_informations.items():
+        color = number_to_color(importance_score)
+        response_html += f"<span style='background-color:{color};'>{input_word}</span> "
+    return response_html
 
 def handle_click(word, nested_responses):
     return {
@@ -139,7 +136,12 @@ st.title("A Demo for GPT's Introspection")
 # Initialize session state
 if "show_prompt" not in st.session_state:
     st.session_state["show_prompt"] = False
-
+if "text" not in st.session_state:
+    st.session_state["text"] = False
+if "buttons" not in st.session_state:
+    st.session_state["buttons"] = False
+if "cat_output" not in st.session_state:
+    st.session_state["cat_output"] = ""
 # Input fields
 api_key = st.text_input(
     "OpenAI API key",
@@ -156,80 +158,106 @@ input2 = st.text_area(
     placeholder="Example: The diagnosis is not stated, but the differential diagnoses of acute pain and essential hypertension are consistent with the elevated blood pressure and the patient's complaint of pain.",
 )
 
-if PREDEFINED_EXAMPLE:
-    input1 = """
-        Explain the concept of a group in abstract algebra.
-    """  # example input
-    input2 = "In abstract algebra, a group is a set equipped with a binary operation that satisfies four fundamental properties: closure, associativity, the existence of an identity element, and the existence of inverse elements for every element in the set. This structure allows abstract groups to model the symmetrical aspects of mathematical systems."
+if CACHE:
+    from trigger import *
+    input1 = MED_INPUT
+    input2 = MED_OUTPUT
 
 if st.button("Get Response") or st.session_state.get("response_fetched", False):
     if not st.session_state.get("response_fetched", False):
         client = Client(api_key)
+        
         status_message = st.empty()
-        status_message.write("Getting response from GPT...")
-        if PREDEFINED_EXAMPLE:
-            responses = {
-            "In abstract algebra,": {"Explain": 3, "abstract algebra": 10},
-            "a group is": {"group": 10},
-            "a set equipped with a binary operation": {"concept": 8},
-            "that satisfies four fundamental properties:": {"concept": 7},
-            "closure,": {"group": 5},
-            "associativity,": {"group": 5},
-            "the existence of an identity element,": {"group": 5},
-            "and the existence of inverse elements": {"group": 5},
-            "for every element in the set.": {"group": 5},
-            "This structure allows abstract groups": {"abstract algebra": 10},
-            "to model the symmetrical aspects": {"concept": 6},
-            "of mathematical systems.": {"abstract algebra": 9}
-            }
-        else:
-            responses = chatbot_response(input1, input2, client)
+        status_message.write("Getting response from GPT... (0/3)")
+        responses = chatbot_response(input1, input2, client)
         introspect_results = parse_json(responses, input1, input2)
-
         # Cache the HTML representations
-        htmls = {}
-        for i, (output_word, input_information) in enumerate(introspect_results):
-            htmls[i] = (
-                output_word,
-                generate_html_for_wordlevel_importance(input_information),
-            )
-
+        cat_output = ' '.join([output_word for output_word, _ in introspect_results])
+        
         # Store that response has been fetched
         st.session_state["response_fetched"] = True
-        st.session_state["htmls"] = htmls
-
-    # Use cached HTMLs if available
-    htmls = st.session_state.get("htmls", {})
-    col1, col2, col3 = st.columns([1, 1, 1])
+        st.session_state["position_cache"] = position_to_word_score_cache(introspect_results)
+        st.session_state["cat_output"] = cat_output
+        
+        # prompt for chatty
+        status_message.write("Getting response from GPT... (1/3)")
+        chatty_responses = chatty_response(input1, input2, client)
+        chatty_introspect_results = parse_json(chatty_responses, input1, input2)
+        st.session_state["chatty_position_cache"] = position_to_word_score_cache(chatty_introspect_results)
+        # prompt for two stage
+        status_message.write("Getting response from GPT... (2/3)")
+        two_stage_responses = two_stage_response(input1, input2, client)
+        two_stage_introspect_results = parse_json_two_stage(two_stage_responses['importance analysis'], input1, input2)
+        st.write(f"Important words in the output: {two_stage_responses['important words']}")
+        st.session_state["two_stage_position_cache"] = position_to_word_score_cache(two_stage_introspect_results)
+        #
+        status_message.write("Response fetched!")
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
     
     with col1:
-        st.write(f"**Output Text:**")
-        trigger_result = text_highlighter(
-            text=input2,
-            labels=[("", "#d7ecf1"), ],
+        st.write("**Select Words Here:**")
+        trigger_results = text_highlighter(
+            text=st.session_state["cat_output"],
+            labels=[("", "#d7ecf1")],
             show_label_selector=False,
         )
-        print('trigger results:\n',trigger_result)
-    with col3:
-        st.write(f"**Output Text:**")
-        layout_buttons_dynamic(htmls)
+        print(trigger_results)
+        # Store multiple selections
+        st.session_state['selected_texts'] = trigger_results
 
     # Display HTML content based on selected output
     with col2:
-        if "selected_output" in st.session_state:
-            selected_output = st.session_state["selected_output"]
-            _, html_content = htmls[selected_output]
-            st.write(f"**Word-Level Importance for: {htmls[selected_output][0]}**")
-            st.markdown(html_content, unsafe_allow_html=True)
+        st.write("**Show Visualization Here (Direct Prompt):**")
+        input_infos = []
+        selected_words = []
+        for select_text in st.session_state['selected_texts']:
+            start = select_text['start']
+            end = select_text['end']
+            for i in range(start, end):
+                if st.session_state['position_cache'][i]['start']:
+                    input_infos.append(st.session_state['position_cache'][i]['input_information'])
+                    selected_words.append(st.session_state['position_cache'][i]['word'])
+        merged_input_information = generate_html_for_multiple_wordlevel_importance(input_infos)
+        st.markdown(merged_input_information, unsafe_allow_html=True)
 
-    # # Display raw response in JSON format
-    # if st.button('Show Raw Response'):
-    #     st.write(responses)
-
+    with col3:
+        st.write("**Chatty Prompt:**")
+        input_infos = []
+        for select_text in st.session_state['selected_texts']:
+            start = select_text['start']
+            end = select_text['end']
+            for i in range(start, end):
+                if st.session_state['chatty_position_cache'][i]['start']:
+                    input_infos.append(st.session_state['chatty_position_cache'][i]['input_information'])
+        merged_input_information = generate_html_for_multiple_wordlevel_importance(input_infos)
+        st.markdown(merged_input_information, unsafe_allow_html=True)
+        
+    with col4:
+        st.write("**\"First ummarize, then introspect\" Prompt:**")
+        input_infos = []
+        for select_text in st.session_state['selected_texts']:
+            start = select_text['start']
+            end = select_text['end']
+            for i in range(start, end):
+                if st.session_state['two_stage_position_cache'][i]['start']:
+                    input_infos.append(st.session_state['two_stage_position_cache'][i]['input_information'])
+        merged_input_information = generate_html_for_multiple_wordlevel_importance(input_infos)
+        st.markdown(merged_input_information, unsafe_allow_html=True)
+        
+        
 # Button to toggle prompt visibility
 if st.button("Show the Used Prompts"):
     st.session_state["show_prompt"] = not st.session_state["show_prompt"]
 
 # Display the prompt conditionally
 if st.session_state["show_prompt"]:
-    st.write(direct_prompt(input1, input2))
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        st.write("**Direct Prompt:**")
+        st.write(direct_prompt(input1, input2))
+    with col2:
+        st.write("**Chatty Prompt:**")
+        st.write(chatty_prompt(input1, input2))
+    with col3:
+        st.write("**Two Stage Prompt:**")
+        st.write(two_stage_prompt(input1, input2))
