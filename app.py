@@ -2,11 +2,14 @@ import streamlit as st
 import json
 import os
 from prompt import *
+from text_highlighter import text_highlighter
+
 st.set_page_config(layout="wide")
 CACHE = False
-
+PREDEFINED_EXAMPLE = True
 
 from collections import defaultdict
+
 
 def approximate_button_width(word, avg_char_width=9, padding=0):
     """
@@ -16,9 +19,11 @@ def approximate_button_width(word, avg_char_width=9, padding=0):
     """
     return len(word) * avg_char_width + padding
 
+
 def approximate_button_width(text, char_width, pad):
     # This is a simplified function to approximate button width.
     return len(text) * char_width + 2 * pad
+
 
 def layout_buttons_dynamic(htmls, max_row_width=800, avg_char_width=15, padding=12):
     """
@@ -41,19 +46,27 @@ def layout_buttons_dynamic(htmls, max_row_width=800, avg_char_width=15, padding=
         else:
             current_row.append((idx, output_word, button_width))
             current_width += button_width
-    
+
     if current_row:  # Append the last row if any
         row_buffers.append(current_row)
 
     # Render each row with appropriate columns
     for row in row_buffers:
-        widths = [button_width  for _, _, button_width in row]
+        widths = [button_width for _, _, button_width in row]
         cols = st.columns(widths)  # Create columns with proportional widths
         for col, (idx, output_word, _) in zip(cols, row):
-            col.button(label=str(output_word).replace('.','\.'), use_container_width=True, key=f"btn_{idx}", on_click=lambda idx=idx: st.session_state.update({'selected_output': idx}))
+            col.button(
+                label=str(output_word).replace(".", "\."),
+                use_container_width=True,
+                key=f"btn_{idx}",
+                on_click=lambda idx=idx: st.session_state.update(
+                    {"selected_output": idx}
+                ),
+            )
         # use st.write to check the column width information
         # st.write(f'{widths}')
         # st.write(f'{[output_word for _, output_word, _ in row]}')
+
 
 def parse_json(response, input_text, output_text):
     # response format: {"phrase": {"phrase": score}}
@@ -61,13 +74,13 @@ def parse_json(response, input_text, output_text):
     input_words = input_text.split()
     # Initialize the main tuple container
     introspect_results = []
-    
+
     # Process each output word
     for output_phrase, input_info in response.items():
         input_words_scores = []
         tmp_dict = defaultdict(int)
         # Search through the JSON for matches and their scores
-        for phrase,score in input_info.items():
+        for phrase, score in input_info.items():
             for word in phrase.split():
                 tmp_dict[word] = score
         for word in input_words:
@@ -88,6 +101,7 @@ def chatbot_response(input1, input2, client):
         response = client.get_response(direct_prompt(input1, input2))
     return response
 
+
 def number_to_color(n):
     white = (255, 255, 255)
     pink = (255, 192, 203)
@@ -95,7 +109,8 @@ def number_to_color(n):
     r = int(white[0] + (pink[0] - white[0]) * (n / 10))
     g = int(white[1] + (pink[1] - white[1]) * (n / 10))
     b = int(white[2] + (pink[2] - white[2]) * (n / 10))
-    return f'rgb({r}, {g}, {b})'
+    return f"rgb({r}, {g}, {b})"
+
 
 def generate_html_for_wordlevel_importance(input_information):
     # Initialize the HTML content string
@@ -103,74 +118,118 @@ def generate_html_for_wordlevel_importance(input_information):
     # Iterate over each output word and its associated input word scores
     for input_word, importance_score in input_information:
         # Calculate the maximum score for the output word from its associated input words
-        
+
         # Get the color corresponding to the maximum score
         color = number_to_color(importance_score)
         # Append the output word formatted with the background color
         response_html += f"<span style='background-color:{color};'>{input_word}</span> "
-    
+
     return response_html
 
 
 def handle_click(word, nested_responses):
-    return {key: val.get(word, 0) for key, val in nested_responses.items() if word in key}
+    return {
+        key: val.get(word, 0) for key, val in nested_responses.items() if word in key
+    }
+
 
 # App title
-st.title('A Demo for GPT\'s Introspection')
+st.title("A Demo for GPT's Introspection")
 
 # Initialize session state
-if 'show_prompt' not in st.session_state:
-    st.session_state['show_prompt'] = False
+if "show_prompt" not in st.session_state:
+    st.session_state["show_prompt"] = False
 
 # Input fields
-api_key = st.text_input("OpenAI API key", placeholder="Your API key from https://platform.openai.com/api-keys")
-if st.button('Confirm API key'):
+api_key = st.text_input(
+    "OpenAI API key",
+    placeholder="Your API key from https://platform.openai.com/api-keys",
+)
+if st.button("Confirm API key"):
     st.write("Confirmed API key")
-input1 = st.text_area("Input", placeholder="Example: I want you to help me review an interaction I had with a patient .......")
-input2 = st.text_area("Output", placeholder="Example: The diagnosis is not stated, but the differential diagnoses of acute pain and essential hypertension are consistent with the elevated blood pressure and the patient's complaint of pain.")
+input1 = st.text_area(
+    "Input",
+    placeholder="Example: I want you to help me review an interaction I had with a patient .......",
+)
+input2 = st.text_area(
+    "Output",
+    placeholder="Example: The diagnosis is not stated, but the differential diagnoses of acute pain and essential hypertension are consistent with the elevated blood pressure and the patient's complaint of pain.",
+)
 
+if PREDEFINED_EXAMPLE:
+    input1 = """
+        Explain the concept of a group in abstract algebra.
+    """  # example input
+    input2 = "In abstract algebra, a group is a set equipped with a binary operation that satisfies four fundamental properties: closure, associativity, the existence of an identity element, and the existence of inverse elements for every element in the set. This structure allows abstract groups to model the symmetrical aspects of mathematical systems."
 
-if st.button('Get Response') or st.session_state.get('response_fetched', False):
-    if not st.session_state.get('response_fetched', False):
+if st.button("Get Response") or st.session_state.get("response_fetched", False):
+    if not st.session_state.get("response_fetched", False):
         client = Client(api_key)
         status_message = st.empty()
         status_message.write("Getting response from GPT...")
-        responses = chatbot_response(input1, input2, client)
+        if PREDEFINED_EXAMPLE:
+            responses = {
+            "In abstract algebra,": {"Explain": 3, "abstract algebra": 10},
+            "a group is": {"group": 10},
+            "a set equipped with a binary operation": {"concept": 8},
+            "that satisfies four fundamental properties:": {"concept": 7},
+            "closure,": {"group": 5},
+            "associativity,": {"group": 5},
+            "the existence of an identity element,": {"group": 5},
+            "and the existence of inverse elements": {"group": 5},
+            "for every element in the set.": {"group": 5},
+            "This structure allows abstract groups": {"abstract algebra": 10},
+            "to model the symmetrical aspects": {"concept": 6},
+            "of mathematical systems.": {"abstract algebra": 9}
+            }
+        else:
+            responses = chatbot_response(input1, input2, client)
         introspect_results = parse_json(responses, input1, input2)
 
         # Cache the HTML representations
         htmls = {}
         for i, (output_word, input_information) in enumerate(introspect_results):
-            htmls[i] = (output_word, generate_html_for_wordlevel_importance(input_information))
-        
+            htmls[i] = (
+                output_word,
+                generate_html_for_wordlevel_importance(input_information),
+            )
+
         # Store that response has been fetched
-        st.session_state['response_fetched'] = True
-        st.session_state['htmls'] = htmls
+        st.session_state["response_fetched"] = True
+        st.session_state["htmls"] = htmls
 
     # Use cached HTMLs if available
-    htmls = st.session_state.get('htmls', {})
-    col1, col2 = st.columns([1, 2])
-    with col2:
+    htmls = st.session_state.get("htmls", {})
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        st.write(f"**Output Text:**")
+        trigger_result = text_highlighter(
+            text=input2,
+            labels=[("", "#d7ecf1"), ],
+            show_label_selector=False,
+        )
+        print('trigger results:\n',trigger_result)
+    with col3:
         st.write(f"**Output Text:**")
         layout_buttons_dynamic(htmls)
-    
+
     # Display HTML content based on selected output
-    with col1:
-        if 'selected_output' in st.session_state:
-            selected_output = st.session_state['selected_output']
+    with col2:
+        if "selected_output" in st.session_state:
+            selected_output = st.session_state["selected_output"]
             _, html_content = htmls[selected_output]
             st.write(f"**Word-Level Importance for: {htmls[selected_output][0]}**")
             st.markdown(html_content, unsafe_allow_html=True)
-        
+
     # # Display raw response in JSON format
     # if st.button('Show Raw Response'):
     #     st.write(responses)
-        
+
 # Button to toggle prompt visibility
-if st.button('View/Hide The Introspection Prompt Format'):
-    st.session_state['show_prompt'] = not st.session_state['show_prompt']
+if st.button("Show the Used Prompts"):
+    st.session_state["show_prompt"] = not st.session_state["show_prompt"]
 
 # Display the prompt conditionally
-if st.session_state['show_prompt']:
-    st.write(direct_prompt(input1,input2))
-
+if st.session_state["show_prompt"]:
+    st.write(direct_prompt(input1, input2))
