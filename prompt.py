@@ -37,9 +37,10 @@ def direct_prompt(input, output):
     DIRECT_TEMPLATE = (
         f"Given the input text:\n```\n"
         f"{input}\n```\nand the following output text:\n```\n{output}\n```\n"
-        """I want you to show the important words and their importance score (from 0 to 10) for every word in the output text with respect to how much they influenced the outputted word in a word level. Namely, I want you to show, for every word in the output text, what words in the input text contribute to their presence the most and what is their importance score. You don't need to present the words with a 0 importance score. You can concatenate continuous words into a phrase if their important words and importance scores are the same.
+        """I want you to analyze and report the contribution of each word or phrase in the input text to each word or phrase in the output text. Assign an importance score from 0 to 10 for each contribution, omitting contributions with scores with zero impact.
 
-You should format your answer using JSON syntax. You should make sure concatenating all keys in the JSON file can form the original output text.
+Use JSON format for your output, ensuring each entry clearly lists output words, their corresponding influential input words or phrases, and the importance scores. 
+You should ensure concatenating all keys in the JSON file can form the original output text.
 
 An example is shown below:
 Input text: 
@@ -70,6 +71,18 @@ Answer:
     )
     return DIRECT_TEMPLATE
 
+
+def conversational_prompt(input, output):
+    CONVERSATIONAL_TEMPLATE = (
+        f"Given the input text:\n```\n"
+        f"{input}\n```\nand the following output text:\n```\n{output}\n```\n"
+        """I'm currently exploring how different parts of input text influence corresponding segments of output text in a project. I'd appreciate some guidance on this. Could you analyze and score the impact of each word or phrase in the input text on the output text, assigning importance scores from 0 to 10? Please exclude any contributions that have no impact.
+
+Additionally, could you structure this analysis in JSON format? The keys in the JSON should align in such a way that, when concatenated, they reconstruct the full original output text. This structure will help in understanding the data flow and contribution more clearly.
+
+Thank you for your assistance!"""
+    )
+    return CONVERSATIONAL_TEMPLATE
 
 if __name__ == "__main__":
     example_input = """
